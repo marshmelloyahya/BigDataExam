@@ -1,0 +1,35 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by FernFlower decompiler)
+//
+
+package org.yahya;
+
+import java.util.Calendar;
+import java.util.concurrent.TimeoutException;
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.streaming.StreamingQueryException;
+
+public class Spark {
+    public Spark() {
+    }
+
+    public static void main(String[] args) throws TimeoutException, StreamingQueryException {
+        SparkConf sparkConf = (new SparkConf()).setAppName("ContinuousMonthlyIncidentAnalysis").setMaster("local[*]");
+        SparkSession spark = SparkSession.builder().config(sparkConf).getOrCreate();
+        Dataset<Row> incidentsDF = spark.read().format("csv").option("header", true).load("incidents.csv");
+        incidentsDF = incidentsDF.withColumn("date", functions.to_date(functions.col("date"), "yyyy-MM-dd"));
+        int currentYear = Calendar.getInstance().get(1);
+        incidentsDF = incidentsDF.filter(functions.year(functions.col("date")).equalTo(currentYear));
+        incidentsDF = incidentsDF.withColumn("month", functions.month(functions.col("date")));
+        incidentsDF.createOrReplaceTempView("incidents");
+        String query = "SELECT month, COUNT(*) AS incident_count FROM incidents GROUP BY month ORDER BY incident_count DESC LIMIT 2";
+        Dataset<Row> result = spark.sql(query);
+        result.show();
+        spark.close();
+    }
+}
